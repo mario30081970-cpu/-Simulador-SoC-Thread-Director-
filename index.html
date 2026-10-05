@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>Simulador SoC & Thread Director: Hardware I</title>
+<style>
+/* ============ VARIABLES DE TEMA ============ */
+:root{
+  --bg:#0d1117;
+  --bg-soft:#161b22;
+  --card:#1c2230;
+  --card-2:#232b3b;
+  --text:#e6edf3;
+  --muted:#93a1b1;
+  --border:#2d3748;
+  --accent:#3b82f6;
+  --accent-2:#8b5cf6;
+  --ok:#22c55e;
+  --bad:#ef4444;
+  --warn:#f59e0b;
+  --shadow:0 8px 24px rgba(0,0,0,.35);
+}
+body.claro{
+  --bg:#eef2f7;
+  --bg-soft:#ffffff;
+  --card:#ffffff;
+  --card-2:#f4f7fb;
+  --text:#0d1117;
+  --muted:#5b6878;
+  --border:#d7dfe9;
+  --accent:#2563eb;
+  --accent-2:#7c3aed;
+  --ok:#15803d;
+  --bad:#b91c1c;
+  --warn:#b45309;
+  --shadow:0 6px 18px rgba(15,35,70,.12);
+}
+
+/* ============ BASE ============ */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  font-size:16px;
+  line-height:1.55;
+  transition:background .25s ease,color .25s ease;
+  padding-bottom:48px;
+  overflow-x:hidden;
+}
+
+/* ============ TOPBAR ============ */
+.topbar{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:10px;
+  padding:12px 14px;
+  background:linear-gradient(120deg,var(--accent),var(--accent-2));
+  color:#fff;
+  box-shadow:0 4px 16px rgba(0,0,0,.28);
+}
+.topbar h1{
+  font-size:15px;margin:0;flex:1;font-weight:700;letter-spacing:.2px;line-height:1.25;
+}
+.topbar h1 span{display:block;font-size:11px;font-weight:500;opacity:.85;letter-spacing:.4px}
+#themeBtn{
+  flex:0 0 auto;
+  background:rgba(255,255,255,.18);
+  border:1px solid rgba(255,255,255,.35);
+  color:#fff;font-size:19px;
+  width:44px;height:44px;border-radius:12px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:transform .15s,background .2s;
+}
+#themeBtn:active{transform:scale(.92);background:rgba(255,255,255,.32)}
+
+/* ============ LAYOUT ============ */
+main{max-width:620px;margin:0 auto;padding:14px}
+.pantalla{display:none;animation:aparece .3s ease}
+.pantalla.activa{display:block}
+@keyframes aparece{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:16px;
+  margin-bottom:14px;
+  box-shadow:var(--shadow);
+}
+
+h2{font-size:19px;margin:0 0 10px;line-height:1.3}
+h3{font-size:16px;margin:0 0 8px}
+p{margin:0 0 10px}
+.muted{color:var(--muted);font-size:14px}
+.small{font-size:13px;color:var(--muted)}
+
+/* ============ BOTONES ============ */
+.btn{
+  display:block;width:100%;
+  min-height:54px;
+  padding:14px 16px;
+  font-size:16px;font-weight:600;font-family:inherit;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:var(--card-2);
+  color:var(--text);
+  cursor:pointer;
+  margin-top:10px;
+  text-align:left;
+  transition:transform .12s ease,background .2s,border-color .2s;
+}
+.btn:active{transform:scale(.985)}
+.btn.primario{
+  background:linear-gradient(120deg,var(--accent),var(--accent-2));
+  color:#fff;border:none;text-align:center;font-size:17px;
+  box-shadow:0 6px 16px rgba(59,130,246,.35);
+}
+.btn.descarga{
+  background:linear-gradient(120deg,#16a34a,#0d9488);
+  color:#fff;border:none;text-align:center;font-size:17px;
+  box-shadow:0 6px 16px rgba(22,163,74,.35);
+}
+.btn.secundario{background:transparent;text-align:center;color:var(--muted)}
+.btn.opcion{
+  display:flex;align-items:center;gap:12px;
+  font-weight:500;font-size:15.5px;line-height:1.35;
+}
+.btn.opcion .letra{
+  flex:0 0 30px;height:30px;border-radius:9px;
+  background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:14px;
+}
+.btn.opcion.correcta{
+  border-color:var(--ok);background:rgba(34,197,94,.14);
+}
+.btn.opcion.correcta .letra{background:var(--ok)}
+.btn.opcion.incorrecta{
+  border-color:var(--bad);background:rgba(239,68,68,.14);
+}
+.btn.opcion.incorrecta .letra{background:var(--bad)}
+.btn.opcion:disabled{cursor:default;opacity:.95}
+
+/* ============ INPUTS ============ */
+label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+input[type=text],textarea{
+  width:100%;padding:14px;font-size:16px;font-family:inherit;
+  border-radius:12px;border:1px solid var(--border);
+  background:var(--card-2);color:var(--text);
+  outline:none;transition:border-color .2s;
+}
+input[type=text]:focus,textarea:focus{border-color:var(--accent)}
+textarea{min-height:110px;resize:vertical;line-height:1.5}
+
+/* ============ PROGRESO ============ */
+.modulo-badge{
+  display:inline-block;font-size:12px;font-weight:800;
+  letter-spacing:.7px;text-transform:uppercase;
+  padding:6px 12px;border-radius:999px;
+  background:linear-gradient(120deg,var(--accent),var(--accent-2));
+  color:#fff;margin-bottom:12px;
+}
+.progress{height:9px;border-radius:99px;background:var(--card-2);overflow:hidden;margin:10px 0 6px;border:1px solid var(--border)}
+#progressBar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .35s ease}
+.contador{font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.4px;text-align:right}
+
+/* ============ FEEDBACK ============ */
+.feedback{
+  margin-top:14px;padding:13px 14px;border-radius:14px;
+  font-size:14.5px;line-height:1.5;border-left:5px solid;
+  animation:aparece .25s ease;
+}
+.feedback.ok{background:rgba(34,197,94,.12);border-color:var(--ok)}
+.feedback.err{background:rgba(239,68,68,.12);border-color:var(--bad)}
+.feedback b{display:block;margin-bottom:4px;font-size:15px}
+.oculto{display:none !important}
+
+/* ============ RESULTADOS ============ */
+.score-circle{
+  width:150px;height:150px;border-radius:50%;
+  margin:6px auto 14px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:conic-gradient(var(--accent) var(--pct,0%), var(--card-2) 0);
+  position:relative;
+}
+.score-circle::after{
+  content:"";position:absolute;inset:11px;border-radius:50%;background:var(--card);
+}
+.score-circle .num,.score-circle .lbl{position:relative;z-index:2}
+.score-circle .num{font-size:38px;font-weight:800;line-height:1}
+.score-circle .lbl{font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+
+.diagnostico{
+  text-align:center;font-size:19px;font-weight:800;margin:8px 0 6px;line-height:1.3;
+}
+.diag-desc{text-align:center;font-size:14px;color:var(--muted);margin-bottom:6px}
+
+.lista-repaso{margin:0;padding:0;list-style:none}
+.lista-repaso li{
+  padding:11px 12px;border-radius:12px;margin-bottom:9px;
+  background:var(--card-2);border-left:4px solid var(--ok);
+  font-size:13.5px;line-height:1.45;
+}
+.lista-repaso li.mal{border-left-color:var(--bad)}
+.lista-repaso .tag{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:3px}
+.lista-repaso .chico{color:var(--muted);font-size:12.5px;display:block;margin-top:3px}
+
+.pregunta-orientadora{
+  background:var(--card-2);border-radius:12px;padding:12px;margin-bottom:12px;
+  border:1px dashed var(--border);
+}
+.pregunta-orientadora p{font-size:14px;margin:0 0 8px;font-weight:600}
+.pregunta-orientadora textarea{min-height:90px;font-size:15px}
+
+footer.nota{
+  text-align:center;font-size:11.5px;color:var(--muted);
+  padding:18px 14px 8px;line-height:1.5;
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>⚙️ Simulador SoC &amp; Thread Director
+    <span>Hardware I · Procesadores Contemporáneos</span>
+  </h1>
+  <button id="themeBtn" aria-label="Cambiar tema">🌙</button>
+</header>
+
+<main>
+
+  <!-- ============ PANTALLA 1: INICIO ============ -->
+  <section id="pantalla-inicio" class="pantalla activa">
+    <div class="card">
+      <h2>🧠 ¿Qué vas a simular?</h2>
+      <p class="muted">Vas a tomar decisiones reales de un <b>Thread Director</b>: repartir tareas entre núcleos P y E, resolver accesos a la jerarquía de memoria y decidir entre arquitecturas de 32 y 64 bits.</p>
+      <p class="small">📚 Basado en: El cambio de paradigma (límites físicos), Anatomía del núcleo, Arquitecturas híbridas P/E, Registros de 64 bits y Jerarquía de Caché.</p>
+    </div>
+
+    <div class="card">
+      <h3>👤 Datos del alumno</h3>
+      <label for="inpNombre">Nombre y Apellido</label>
+      <input type="text" id="inpNombre" placeholder="Ej: Ana Gómez" autocomplete="name">
+
+      <label for="inpCurso">Curso / División</label>
+      <input type="text" id="inpCurso" placeholder="Ej: 3° Año - Técnica N°5" autocomplete="off">
+
+      <button class="btn primario" id="btnComenzar" style="margin-top:20px">🚀 Comenzar Simulación</button>
+      <p class="small" id="avisoDatos" style="text-align:center;margin-top:10px"></p>
+    </div>
+
+    <div class="card">
+      <h3>📋 Estructura del desafío</h3>
+      <p class="small">🔹 <b>Módulo 1 —</b> Gestor de Tareas (Thread Director): 6 tareas<br>
+      🔹 <b>Módulo 2 —</b> Jerarquía de Memoria y Caché: 5 solicitudes<br>
+      🔹 <b>Módulo 3 —</b> Ancho de Banda y Registros 32/64 bits: 5 preguntas</p>
+      <p class="small">Al finalizar podrás descargar un informe <b>.doc</b> con todas tus decisiones para pegar en tu carpeta.</p>
+    </div>
+  </section>
+
+  <!-- ============ PANTALLA 2: JUEGO ============ -->
+  <section id="pantalla-juego" class="pantalla">
+    <div class="card">
+      <div class="modulo-badge" id="moduloBadge">Módulo 1</div>
+      <div class="progress"><div id="progressBar"></div></div>
+      <div class="contador" id="contador">Pregunta 1 / 6</div>
+    </div>
+
+    <div class="card">
+      <h3 id="preguntaTexto">—</h3>
+      <div id="opciones"></div>
+      <div id="feedback" class="feedback oculto"></div>
+      <button class="btn primario oculto" id="btnSiguiente">Siguiente ➡️</button>
+    </div>
+  </section>
+
+  <!-- ============ PANTALLA 3: RESULTADOS ============ -->
+  <section id="pantalla-final" class="pantalla">
+    <div class="card">
+      <h2 style="text-align:center">📊 Informe de Eficiencia</h2>
+      <div class="score-circle" id="scoreCircle">
+        <div class="num" id="scoreNum">0%</div>
+        <div class="lbl">Eficiencia</div>
+      </div>
+      <div class="diagnostico" id="diagTitulo">—</div>
+      <div class="diag-desc" id="diagDesc">—</div>
+      <p class="small" style="text-align:center" id="diagDetalle">—</p>
+    </div>
+
+    <div class="card">
+      <h3>🔍 Repaso de tus decisiones</h3>
+      <ul class="lista-repaso" id="listaRepaso"></ul>
+    </div>
+
+    <div class="card">
+      <h3>✍️ Conclusiones para tu carpeta</h3>
+      <p class="small">Respondé con tus palabras. Estas respuestas se incluirán en el archivo <b>.doc</b> descargable.</p>
+
+      <div class="pregunta-orientadora">
+        <p>1) ¿Por qué la industria dejó de "subir los GHz" y pasó a la era del SoC con procesamiento paralelo?</p>
+        <textarea id="c1" placeholder="Escribí tu respuesta..."></textarea>
+      </div>
+
+      <div class="pregunta-orientadora">
+        <p>2) Explicá con un ejemplo la diferencia entre un <b>P-Core</b> y un <b>E-Core</b>. ¿Cuándo conviene cada uno?</p>
+        <textarea id="c2" placeholder="Escribí tu respuesta..."></textarea>
+      </div>
+
+      <div class="pregunta-orientadora">
+        <p>3) ¿Qué es el <b>principio de localidad</b> y cómo ayuda la caché a evitar el cuello de botella con la RAM?</p>
+        <textarea id="c3" placeholder="Escribí tu respuesta..."></textarea>
+      </div>
+
+      <div class="pregunta-orientadora">
+        <p>4) ¿Por qué la arquitectura de 64 bits fue clave para el software y la seguridad actuales?</p>
+        <textarea id="c4" placeholder="Escribí tu respuesta..."></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn descarga" id="btnDescargar">📥 Descargar Informe en formato .DOC para Classroom</button>
+      <button class="btn secundario" id="btnReiniciar">🔄 Volver a intentar</button>
+      <p class="small" style="text-align:center;margin-top:10px">El archivo se descarga en tu celular. Luego adjuntalo en Google Classroom.</p>
+    </div>
+  </section>
+
+  <footer class="nota">
+    Simulador SoC &amp; Thread Director — Hardware I<br>
+    Educación Técnica · Tercer Año · Uso educativo
+  </footer>
+</main>
+
+<script>
+/* =========================================================
+   BANCO DE PREGUNTAS
+   ========================================================= */
+
+/* ---- MÓDULO 1: THREAD DIRECTOR ---- */
+const POOL_M1 = [
+  {
+    escenario:"🎬 Renderizado 3D en Blender: hay que calcular millones de polígonos, sombras e iluminación en tiempo real.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:0,
+    explicacion:"Es una carga máxima y sostenida. Necesita el alto IPC y las frecuencias elevadas del P-Core, aunque consuma más energía."
+  },
+  {
+    escenario:"🛡️ El antivirus descarga firmas nuevas y analiza archivos en segundo plano mientras el usuario navega.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:1,
+    explicacion:"Tarea de fondo y ligera. El E-Core la resuelve con el mínimo consumo energético por tarea, sin robar recursos al usuario."
+  },
+  {
+    escenario:"🎮 Partida competitiva de eSports a 144 FPS con físicas complejas y respuesta inmediata.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:0,
+    explicacion:"La latencia y los FPS son críticos. El P-Core ofrece el máximo rendimiento por hilo, imprescindible en gaming competitivo."
+  },
+  {
+    escenario:"🎵 Reproducción de música y sincronización de notificaciones con la pantalla apagada.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:1,
+    explicacion:"Carga mínima y constante. Un E-Core mantiene la tarea activa con un consumo casi insignificante, ahorrando batería."
+  },
+  {
+    escenario:"🎞️ Exportar un video 4K aplicando filtros y compresión H.265.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:0,
+    explicacion:"Es un proceso crítico y pesado (render de video). Conviene el P-Core para reducir el tiempo total de exportación."
+  },
+  {
+    escenario:"🗂️ Indexación de archivos del sistema operativo mientras el equipo está en reposo.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:1,
+    explicacion:"Tarea rutinaria del SO. El E-Core la ejecuta de forma eficiente sin desperdiciar la potencia bruta del P-Core."
+  },
+  {
+    escenario:"🧮 Simulación científica: cálculo matricial pesado para un trabajo práctico de la escuela.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:0,
+    explicacion:"Proceso crítico y de alta demanda computacional. El P-Core maximiza el rendimiento por ciclo."
+  },
+  {
+    escenario:"📥 Descarga de una actualización del sistema en segundo plano mientras se usa otra app.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:1,
+    explicacion:"Es una tarea en segundo plano con poca carga de CPU. El E-Core es la asignación energéticamente óptima."
+  },
+  {
+    escenario:"🖥️ Compilación completa (build) de un proyecto de software grande.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:0,
+    explicacion:"Compilar es una carga crítica y sostenida. El P-Core acorta drásticamente el tiempo de compilación."
+  },
+  {
+    escenario:"🔔 Servicio rutinario del SO: revisar correo, calendario y telemetría cada cierto tiempo.",
+    opciones:["P-Core (Performance)","E-Core (Efficiency)"],
+    correcta:1,
+    explicacion:"Tarea ligera y repetitiva. El E-Core la absorbe con mínimo consumo y deja libres los P-Cores."
+  }
+];
+
+/* ---- MÓDULO 2: JERARQUÍA DE MEMORIA ---- */
+const OPC_M2 = ["Caché L1","Caché L2","Caché L3","Memoria RAM principal"];
+
+const POOL_M2 = [
+  {
+    escenario:"La CPU ejecuta un bucle <code>for</code> y usa una y otra vez la misma variable <code>contador</code>.",
+    opciones:OPC_M2, correcta:0,
+    explicacion:"Localidad temporal pura: el dato se repite. Va al nivel más cercano al núcleo, la Caché L1 (exclusiva, latencia mínima)."
+  },
+  {
+    escenario:"Un solo núcleo trabaja con un bloque de datos que ya no entra en L1 pero se reutiliza constantemente.",
+    opciones:OPC_M2, correcta:1,
+    explicacion:"La Caché L2 tiene capacidad media y es por núcleo o clúster: es el siguiente nivel natural cuando L1 se queda corta."
+  },
+  {
+    escenario:"Varios núcleos (P-Cores y E-Cores) necesitan leer las mismas texturas y datos compartidos.",
+    opciones:OPC_M2, correcta:2,
+    explicacion:"La Caché L3 es de gran capacidad y compartida entre núcleos: evita que cada uno vaya por separado a la RAM."
+  },
+  {
+    escenario:"El usuario abre una aplicación que todavía no está cargada en el chip.",
+    opciones:OPC_M2, correcta:3,
+    explicacion:"Los datos vienen del almacenamiento y se copian a la Memoria RAM principal, antes de poder pasar a los niveles de caché."
+  },
+  {
+    escenario:"Se necesitan al mismo tiempo las instrucciones y los datos que se ejecutan en este ciclo de reloj.",
+    opciones:OPC_M2, correcta:0,
+    explicacion:"La Caché L1 está dividida en datos e instrucciones, justamente para servir ambos flujos en el menor tiempo posible."
+  },
+  {
+    escenario:"Un clúster de núcleos comparte un buffer muy grande para no tener que ir a la RAM.",
+    opciones:OPC_M2, correcta:2,
+    explicacion:"La Caché L3 es el nivel compartido de gran capacidad (y puede usar apilado 3D V-Cache)."
+  },
+  {
+    escenario:"Un programa lee por primera vez un archivo de 500 MB desde el disco rígido.",
+    opciones:OPC_M2, correcta:3,
+    explicacion:"El contenido se copia a la Memoria RAM principal; recién después la CPU lo irá trayendo a las cachés según lo use."
+  },
+  {
+    escenario:"El Thread Director envía dos hilos distintos a dos P-Cores que trabajan con el mismo conjunto de datos.",
+    opciones:OPC_M2, correcta:2,
+    explicacion:"Datos compartidos entre núcleos → Caché L3, que es el punto común de gran capacidad dentro del chip."
+  }
+];
+
+/* ---- MÓDULO 3: ANCHO DE BANDA Y REGISTROS ---- */
+const POOL_M3 = [
+  {
+    escenario:"¿Cuál es el límite teórico de memoria RAM direccionable en una arquitectura de 32 bits?",
+    opciones:["1 GB","4 GB","16 GB","16 Exabytes"], correcta:1,
+    explicacion:"2³² bytes = 4 GB. Ese límite fue un cuello de botella fatal para el software moderno."
+  },
+  {
+    escenario:"¿Cuánta memoria puede direccionar teóricamente un procesador de 64 bits?",
+    opciones:["64 GB","1 TB","16 Exabytes","Sigue limitado a 4 GB"], correcta:2,
+    explicacion:"Con 64 bits se puede direccionar hasta 16 EB (exabytes), además de mejorar el cifrado y la seguridad del sistema."
+  },
+  {
+    escenario:"Un bus de 64 bits, por cada ciclo de reloj, transfiere…",
+    opciones:["32 bits","64 bits","128 bits","Depende de la RAM instalada"], correcta:1,
+    explicacion:"Los buses procesan bloques de 64 bits por ciclo, duplicando el ancho de banda masivo frente a generaciones anteriores."
+  },
+  {
+    escenario:"¿Qué arquitectura permite un cifrado y una seguridad del sistema radicalmente mejores?",
+    opciones:["32 bits","64 bits","Ambas por igual","Ninguna de las dos"], correcta:1,
+    explicacion:"Los registros y buses de 64 bits optimizan radicalmente el cifrado y la seguridad del sistema."
+  },
+  {
+    escenario:"Un editor de video profesional necesita usar 24 GB de RAM. ¿Qué arquitectura es obligatoria?",
+    opciones:["32 bits","64 bits","Cualquiera de las dos","Solo con caché L3"], correcta:1,
+    explicacion:"Con 32 bits el techo es 4 GB. Para 24 GB es obligatorio un sistema de 64 bits."
+  },
+  {
+    escenario:"¿Por qué se abandonó la carrera por subir los GHz como estrategia principal?",
+    opciones:[
+      "Porque se acabaron los transistores",
+      "Por los límites de disipación térmica y el consumo energético",
+      "Porque la RAM se volvió más lenta",
+      "Porque el software se simplificó"
+    ], correcta:1,
+    explicacion:"Durante décadas se subieron los GHz, pero se chocó contra el muro de la disipación térmica y el consumo."
+  },
+  {
+    escenario:"¿Qué caracteriza a la era del SoC (System on a Chip)?",
+    opciones:[
+      "Mayor frecuencia individual de un solo núcleo",
+      "Eficiencia y procesamiento paralelo masivo",
+      "La eliminación de la memoria caché",
+      "Un único núcleo mucho más rápido"
+    ], correcta:1,
+    explicacion:"La velocidad individual deja paso a la eficiencia y al procesamiento paralelo masivo dentro de un mismo silicio."
+  },
+  {
+    escenario:"Un núcleo físico con SMT (2 núcleos lógicos) sirve principalmente para…",
+    opciones:[
+      "Duplicar la frecuencia de reloj",
+      "Llenar los tiempos muertos del pipeline aprovechando mejor los recursos de ejecución",
+      "Duplicar la cantidad de memoria RAM",
+      "Eliminar la caché L1"
+    ], correcta:1,
+    explicacion:"El SMT duplica los recursos visibles ante el SO y mejora el aprovechamiento del pipeline, llenando sus tiempos muertos."
+  }
+];
+
+/* =========================================================
+   ESTADO GLOBAL
+   ========================================================= */
+const state = {
+  alumno:{nombre:"",curso:""},
+  modulos:[],
+  modIdx:0,
+  pregIdx:0,
+  registros:[],
+  aciertos:0,
+  total:0,
+  respondida:false
+};
+
+/* =========================================================
+   UTILIDADES
+   ========================================================= */
+function mezclar(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+function $(id){ return document.getElementById(id); }
+function mostrarPantalla(id){
+  document.querySelectorAll(".pantalla").forEach(p=>p.classList.remove("activa"));
+  $(id).classList.add("activa");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function escapar(txt){
+  return String(txt).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+/* Versión sin etiquetas para el informe .doc */
+function limpiar(txt){
+  return String(txt).replace(/<[^>]*>/g,"");
+}
+
+/* =========================================================
+   TEMA CLARO / OSCURO
+   ========================================================= */
+(function initTema(){
+  let guardado = null;
+  try{ guardado = localStorage.getItem("soc_tema"); }catch(e){}
+  if(guardado === "claro"){ document.body.classList.add("claro"); $("themeBtn").textContent = "☀️"; }
+  else { $("themeBtn").textContent = "🌙"; }
+})();
+$("themeBtn").addEventListener("click", ()=>{
+  document.body.classList.toggle("claro");
+  const claro = document.body.classList.contains("claro");
+  $("themeBtn").textContent = claro ? "☀️" : "🌙";
+  try{ localStorage.setItem("soc_tema", claro ? "claro" : "oscuro"); }catch(e){}
+});
+
+/* =========================================================
+   INICIO
+   ========================================================= */
+$("btnComenzar").addEventListener("click", ()=>{
+  const nombre = $("inpNombre").value.trim();
+  const curso  = $("inpCurso").value.trim();
+
+  if(nombre.length < 3 || curso.length < 2){
+    $("avisoDatos").textContent = "⚠️ Completá tu Nombre, Apellido y Curso para continuar.";
+    $("avisoDatos").style.color = "var(--bad)";
+    if(nombre.length < 3) $("inpNombre").focus(); else $("inpCurso").focus();
+    return;
+  }
+
+  state.alumno.nombre = nombre;
+  state.alumno.curso  = curso;
+
+  /* Construcción de los módulos con preguntas mezcladas */
+  state.modulos = [
+    {
+      nombre:"Módulo 1 · Thread Director",
+      consigna:"Asigná cada tarea al núcleo más eficiente",
+      preguntas: mezclar(POOL_M1).slice(0,6)
+    },
+    {
+      nombre:"Módulo 2 · Jerarquía de Memoria",
+      consigna:"Elegí el nivel correcto aplicando el principio de localidad",
+      preguntas: mezclar(POOL_M2).slice(0,5)
+    },
+    {
+      nombre:"Módulo 3 · Ancho de Banda 32/64 bits",
+      consigna:"Decidí correctamente sobre registros, buses y límites",
+      preguntas: mezclar(POOL_M3).slice(0,5)
+    }
+  ];
+
+  state.total = state.modulos.reduce((s,m)=>s+m.preguntas.length,0);
+
+  state.modIdx = 0;
+  state.pregIdx = 0;
+  state.registros = [];
+  state.aciertos = 0;
+
+  mostrarPantalla("pantalla-juego");
+  renderPregunta();
+});
+
+/* =========================================================
+   RENDER DE PREGUNTA
+   ========================================================= */
+function renderPregunta(){
+  const mod = state.modulos[state.modIdx];
+  const preg = mod.preguntas[state.pregIdx];
+  state.respondida = false;
+
+  /* Badge + progreso */
+  $("moduloBadge").textContent = mod.nombre;
+  const resueltas = state.registros.length;
+  $("progressBar").style.width = ((resueltas/state.total)*100) + "%";
+  $("contador").textContent = "Pregunta " + (state.pregIdx+1) + " / " + mod.preguntas.length +
+                              "  ·  Total " + (resueltas+1) + "/" + state.total;
+
+  /* Texto */
+  $("preguntaTexto").innerHTML = preg.escenario;
+
+  /* Opciones */
+  const cont = $("opciones");
+  cont.innerHTML = "";
+  const letras = ["A","B","C","D","E"];
+
+  preg.opciones.forEach((op,i)=>{
+    const b = document.createElement("button");
+    b.className = "btn opcion";
+    b.innerHTML = '<span class="letra">'+letras[i]+'</span><span>'+op+'</span>';
+    b.addEventListener("click", ()=> responder(i,b));
+    cont.appendChild(b);
+  });
+
+  /* Reset feedback */
+  const fb = $("feedback");
+  fb.className = "feedback oculto";
+  fb.innerHTML = "";
+  $("btnSiguiente").classList.add("oculto");
+}
+
+/* =========================================================
+   RESPUESTA
+   ========================================================= */
+function responder(indice, boton){
+  if(state.respondida) return;
+  state.respondida = true;
+
+  const mod  = state.modulos[state.modIdx];
+  const preg = mod.preguntas[state.pregIdx];
+  const esCorrecta = (indice === preg.correcta);
+
+  /* Bloquear todos los botones y marcar */
+  const botones = $("opciones").querySelectorAll(".btn.opcion");
+  botones.forEach((b,i)=>{
+    b.disabled = true;
+    if(i === preg.correcta) b.classList.add("correcta");
+    if(i === indice && !esCorrecta) b.classList.add("incorrecta");
+  });
+
+  /* Puntaje */
+  if(esCorrecta) state.aciertos++;
+
+  /* Registro */
+  state.registros.push({
+    modulo: mod.nombre,
+    escenario: limpiar(preg.escenario),
+    elegida: preg.opciones[indice],
+    correcta: preg.opciones[preg.correcta],
+    ok: esCorrecta,
+    explicacion: preg.explicacion
+  });
+
+  /* Feedback visual */
+  const fb = $("feedback");
+  fb.className = "feedback " + (esCorrecta ? "ok" : "err");
+  fb.innerHTML = "<b>" + (esCorrecta ? "✅ ¡Correcto!" : "❌ No era la mejor opción") + "</b>" +
+                 preg.explicacion +
+                 (esCorrecta ? "" : "<br><br><b>Respuesta correcta:</b> " + preg.opciones[preg.correcta]);
+
+  /* Barra de progreso */
+  $("progressBar").style.width = ((state.registros.length/state.total)*100) + "%";
+
+  /* Botón siguiente */
+  const btnSig = $("btnSiguiente");
+  const esUltima = (state.modIdx === state.modulos.length-1) &&
+                   (state.pregIdx === mod.preguntas.length-1);
+  btnSig.textContent = esUltima ? "🏁 Ver resultados finales" : "Siguiente ➡️";
+  btnSig.classList.remove("oculto");
+  btnSig.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+/* =========================================================
+   AVANZAR
+   ========================================================= */
+$("btnSiguiente").addEventListener("click", ()=>{
+  const mod = state.modulos[state.modIdx];
+
+  if(state.pregIdx < mod.preguntas.length - 1){
+    state.pregIdx++;
+    renderPregunta();
+    return;
+  }
+
+  if(state.modIdx < state.modulos.length - 1){
+    state.modIdx++;
+    state.pregIdx = 0;
+    renderPregunta();
+    return;
+  }
+
+  mostrarResultados();
+});
+
+/* =========================================================
+   RESULTADOS
+   ========================================================= */
+function calcularPorcentaje(){
+  return Math.round((state.aciertos / state.total) * 100);
+}
+
+function obtenerDiagnostico(pct){
+  if(pct >= 90) return {
+    titulo:"🏆 Optimizador Experto de Silicio",
+    desc:"Dominás la arquitectura híbrida: asignás cada hilo a su núcleo ideal y conocés la jerarquía de memoria como un ingeniero.",
+    detalle:"Nivel: AVANZADO — Podés explicar y justificar cada decisión con fundamento técnico."
+  };
+  if(pct >= 75) return {
+    titulo:"⚡ Ingeniero de Rendimiento Híbrido",
+    desc:"Muy buen desempeño. Entendés el balance entre potencia y eficiencia, con algunos detalles por ajustar.",
+    detalle:"Nivel: COMPETENTE — Repasá los errores marcados en rojo para llegar al nivel experto."
+  };
+  if(pct >= 50) return {
+    titulo:"🔧 Técnico en Formación",
+    desc:"Vas por buen camino, pero todavía confundís algunos niveles de caché o el rol de los núcleos E.",
+    detalle:"Nivel: EN PROCESO — Volvé al material teórico y repetí la simulación."
+  };
+  return {
+    titulo:"⚠️ Cuello de Botella Detectado",
+    desc:"Tus asignaciones están frenando al procesador. Necesitás repasar los conceptos base antes de continuar.",
+    detalle:"Nivel: INICIAL — Releé el marco teórico (P/E cores, caché, 32 vs 64 bits) y volvé a intentarlo."
+  };
+}
+
+function mostrarResultados(){
+  const pct = calcularPorcentaje();
+  const diag = obtenerDiagnostico(pct);
+
+  /* Círculo de puntaje */
+  const circ = $("scoreCircle");
+  circ.style.setProperty("--pct", pct + "%");
+  $("scoreNum").textContent = pct + "%";
+
+  $("diagTitulo").textContent = diag.titulo;
+  $("diagDesc").textContent = diag.desc;
+  $("diagDetalle").textContent = diag.detalle;
+
+  /* Lista de repaso */
+  const ul = $("listaRepaso");
+  ul.innerHTML = "";
+  state.registros.forEach((r,i)=>{
+    const li = document.createElement("li");
+    li.className = r.ok ? "" : "mal";
+    li.innerHTML =
+      '<span class="tag">' + escapar(r.modulo) + ' · ' + (r.ok ? "✔ Correcto" : "✘ Incorrecto") + '</span>' +
+      '<b>' + escapar(r.escenario) + '</b>' +
+      '<span class="chico">Tu respuesta: ' + escapar(r.elegida) +
+      (r.ok ? "" : ' · Correcta: ' + escapar(r.correcta)) + '</span>';
+    ul.appendChild(li);
+  });
+
+  mostrarPantalla("pantalla-final");
+}
+
+/* =========================================================
+   REINICIAR
+   ========================================================= */
+$("btnReiniciar").addEventListener("click", ()=>{
+  state.registros = [];
+  state.aciertos = 0;
+  state.modIdx = 0;
+  state.pregIdx = 0;
+  ["c1","c2","c3","c4"].forEach(id=>{ $(id).value = ""; });
+  mostrarPantalla("pantalla-inicio");
+  $("avisoDatos").textContent = "";
+});
+
+/* =========================================================
+   GENERACIÓN DEL ARCHIVO .DOC
+   ========================================================= */
+function generarHTMLDoc(){
+  const pct = calcularPorcentaje();
+  const diag = obtenerDiagnostico(pct);
+  const fecha = new Date().toLocaleDateString("es-AR", {day:"2-digit", month:"2-digit", year:"numeric"});
+  const hora  = new Date().toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"});
+
+  /* Filas de la tabla de decisiones */
+  let filas = "";
+  state.registros.forEach((r,i)=>{
+    filas +=
+      '<tr>' +
+        '<td style="border:1px solid #999999;padding:6px;text-align:center;">' + (i+1) + '</td>' +
+        '<td style="border:1px solid #999999;padding:6px;font-size:10pt;">' + escapar(r.modulo) + '</td>' +
+        '<td style="border:1px solid #999999;padding:6px;font-size:10pt;">' + escapar(r.escenario) + '</td>' +
+        '<td style="border:1px solid #999999;padding:6px;font-size:10pt;">' + escapar(r.elegida) + '</td>' +
+        '<td style="border:1px solid #999999;padding:6px;font-size:10pt;">' + escapar(r.correcta) + '</td>' +
+        '<td style="border:1px solid #999999;padding:6px;text-align:center;font-weight:bold;color:' +
+          (r.ok ? '#15803d' : '#b91c1c') + ';">' + (r.ok ? "CORRECTO" : "INCORRECTO") + '</td>' +
+      '</tr>';
+  });
+
+  /* Resumen por módulo */
+  let resumenMod = "";
+  state.modulos.forEach(m=>{
+    const regs = state.registros.filter(r=>r.modulo === m.nombre);
+    const ok = regs.filter(r=>r.ok).length;
+    resumenMod +=
+      '<tr>' +
+        '<td style="border:1px solid #999999;padding:6px;font-size:10pt;">' + escapar(m.nombre) + '</td>' +
+        '<td style="border:1px solid #999999;padding:6px;text-align:center;font-size:10pt;">' + regs.length + '</td>' +
+        '<td style="border:1px solid #999999;padding:6px;text-align:center;font-size:10pt;">' + ok + '</td>' +
+        '<td style="border:1px solid #999999;padding:6px;text-align:center;font-size:10pt;">' +
+          (regs.length ? Math.round((ok/regs.length)*100) : 0) + '%</td>' +
+      '</tr>';
+  });
+
+  /* Conclusiones */
+  const conclusiones = [
+    {p:"1) ¿Por qué la industria dejó de \"subir los GHz\" y pasó a la era del SoC con procesamiento paralelo?",
+     r:$("c1").value.trim()},
+    {p:"2) Explicá con un ejemplo la diferencia entre un P-Core y un E-Core. ¿Cuándo conviene cada uno?",
+     r:$("c2").value.trim()},
+    {p:"3) ¿Qué es el principio de localidad y cómo ayuda la caché a evitar el cuello de botella con la RAM?",
+     r:$("c3").value.trim()},
+    {p:"4) ¿Por qué la arquitectura de 64 bits fue clave para el software y la seguridad actuales?",
+     r:$("c4").value.trim()}
+  ];
+
+  let bloqueConclusiones = "";
+  conclusiones.forEach(c=>{
+    bloqueConclusiones +=
+      '<p style="font-size:11pt;font-weight:bold;margin:14px 0 4px;">' + escapar(c.p) + '</p>' +
+      '<p style="font-size:11pt;margin:0 0 10px;padding:8px;border:1px solid #cccccc;background:#f7f9fc;">' +
+        (c.r ? escapar(c.r).replace(/\n/g,"<br>") : '<i>(Sin responder)</i>') +
+      '</p>';
+  });
+
+  /* Documento completo compatible con Word / Google Docs */
+  const html =
+'<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+      'xmlns:w="urn:schemas-microsoft-com:office:word" ' +
+      'xmlns="http://www.w3.org/TR/REC-html40">' +
+'<head>' +
+'<meta http-equiv="Content-Type" content="text/html; charset=utf-8">' +
+'<title>Informe Hardware I</title>' +
+'<style>' +
+'  @page { size: A4; margin: 2cm; }' +
+'  body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color:#111111; }' +
+'  h1 { font-size: 17pt; color:#1e3a8a; margin:0 0 4px; }' +
+'  h2 { font-size: 13pt; color:#1e3a8a; margin:20px 0 8px; border-bottom:2px solid #1e3a8a; padding-bottom:3px; }' +
+'  table { border-collapse: collapse; width:100%; }' +
+'  .dato { font-size:11pt; margin:2px 0; }' +
+'</style>' +
+'</head>' +
+'<body>' +
+
+'<h1>SIMULADOR SoC &amp; THREAD DIRECTOR — INFORME DE ACTIVIDAD</h1>' +
+'<p style="font-size:11pt;margin:0 0 12px;"><b>Materia:</b> Hardware I &nbsp;|&nbsp; <b>Nivel:</b> Tercer Año — Educación Técnica</p>' +
+
+'<table style="border:1px solid #1e3a8a;background:#eef2ff;margin-bottom:16px;">' +
+  '<tr><td style="padding:10px;">' +
+    '<p class="dato"><b>Alumno/a:</b> ' + escapar(state.alumno.nombre) + '</p>' +
+    '<p class="dato"><b>Curso / División:</b> ' + escapar(state.alumno.curso) + '</p>' +
+    '<p class="dato"><b>Fecha:</b> ' + fecha + ' &nbsp; <b>Hora:</b> ' + hora + '</p>' +
+    '<p class="dato"><b>Actividad:</b> Simulador interactivo de arquitecturas de procesadores contemporáneos (Thread Director, jerarquía de memoria y registros de 64 bits).</p>' +
+  '</td></tr>' +
+'</table>' +
+
+'<h2>1. Resumen de resultados</h2>' +
+'<table style="border:1px solid #999999;margin-bottom:10px;">' +
+  '<tr>' +
+    '<td style="border:1px solid #999999;padding:8px;background:#f0f0f0;"><b>Puntaje de eficiencia</b></td>' +
+    '<td style="border:1px solid #999999;padding:8px;font-size:14pt;font-weight:bold;color:#1e3a8a;">' + pct + '%</td>' +
+  '</tr>' +
+  '<tr>' +
+    '<td style="border:1px solid #999999;padding:8px;background:#f0f0f0;"><b>Respuestas correctas</b></td>' +
+    '<td style="border:1px solid #999999;padding:8px;">' + state.aciertos + ' de ' + state.total + '</td>' +
+  '</tr>' +
+  '<tr>' +
+    '<td style="border:1px solid #999999;padding:8px;background:#f0f0f0;"><b>Diagnóstico del desempeño</b></td>' +
+    '<td style="border:1px solid #999999;padding:8px;"><b>' + diag.titulo + '</b><br>' + diag.desc + '<br><i>' + diag.detalle + '</i></td>' +
+  '</tr>' +
+'</table>' +
+
+'<h2>2. Desempeño por módulo</h2>' +
+'<table style="border:1px solid #999999;">' +
+  '<tr style="background:#1e3a8a;color:#ffffff;">' +
+    '<td style="border:1px solid #999999;padding:6px;"><b>Módulo</b></td>' +
+    '<td style="border:1px solid #999999;padding:6px;text-align:center;"><b>Preguntas</b></td>' +
+    '<td style="border:1px solid #999999;padding:6px;text-align:center;"><b>Correctas</b></td>' +
+    '<td style="border:1px solid #999999;padding:6px;text-align:center;"><b>%</b></td>' +
+  '</tr>' + resumenMod +
+'</table>' +
+
+'<h2>3. Registro detallado de decisiones</h2>' +
+'<table style="border:1px solid #999999;">' +
+  '<tr style="background:#1e3a8a;color:#ffffff;">' +
+    '<td style="border:1px solid #999999;padding:6px;"><b>#</b></td>' +
+    '<td style="border:1px solid #999999;padding:6px;"><b>Módulo</b></td>' +
+    '<td style="border:1px solid #999999;padding:6px;"><b>Situación planteada</b></td>' +
+    '<td style="border:1px solid #999999;padding:6px;"><b>Mi decisión</b></td>' +
+    '<td style="border:1px solid #999999;padding:6px;"><b>Decisión óptima</b></td>' +
+    '<td style="border:1px solid #999999;padding:6px;"><b>Resultado</b></td>' +
+  '</tr>' + filas +
+'</table>' +
+
+'<h2>4. Conclusiones y respuestas orientadoras</h2>' +
+bloqueConclusiones +
+
+'<h2>5. Observaciones del docente</h2>' +
+'<p style="font-size:11pt;margin:0 0 10px;padding:26px;border:1px dashed #999999;">&nbsp;</p>' +
+
+'<p style="font-size:9pt;color:#666666;margin-top:22px;border-top:1px solid #cccccc;padding-top:8px;">' +
+'Documento generado automáticamente por el "Simulador SoC &amp; Thread Director — Hardware I". ' +
+'Para adjuntar en Google Classroom y archivar en la carpeta física.' +
+'</p>' +
+
+'</body></html>';
+
+  return html;
+}
+
+/* =========================================================
+   DESCARGA DEL .DOC
+   ========================================================= */
+$("btnDescargar").addEventListener("click", ()=>{
+  try{
+    const html = generarHTMLDoc();
+
+    /* BOM + codificación UTF-8 para que Word respete los acentos */
+    const blob = new Blob(["\ufeff", html], {type:"application/msword;charset=utf-8"});
+
+    const nombreArchivo = "Informe_HardwareI_" +
+      state.alumno.nombre.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,"").replace(/\s+/g,"_") +
+      "_" + state.alumno.curso.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,"").replace(/\s+/g,"_") +
+      ".doc";
+
+    /* Compatibilidad Android / iOS */
+    if(window.navigator && window.navigator.msSaveOrOpenBlob){
+      window.navigator.msSaveOrOpenBlob(blob, nombreArchivo);
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nombreArchivo;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    setTimeout(()=> URL.revokeObjectURL(url), 4000);
+
+    /* Confirmación visual */
+    const btn = $("btnDescargar");
+    const original = btn.textContent;
+    btn.textContent = "✅ ¡Informe descargado! Revisá tus Descargas";
+    btn.disabled = true;
+    setTimeout(()=>{ btn.textContent = original; btn.disabled = false; }, 3200);
+
+  }catch(err){
+    alert("Hubo un problema al generar el archivo. Verificá que completaste tus datos e intentá nuevamente.");
+  }
+});
+</script>
+</body>
+</html>
